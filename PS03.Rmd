@@ -1,6 +1,6 @@
 ---
 title: "STAT/MATH 495: Problem Set 03"
-author: "WRITE YOUR NAME HERE"
+author: "Jeff Lancaster"
 date: "2017-09-26"
 output:
   html_document:
@@ -27,18 +27,129 @@ For both `data1` and `data2` tibbles (a tibble is a data frame with some
 [metadata](https://blog.rstudio.com/2016/03/24/tibble-1-0-0#tibbles-vs-data-frames) attached):
 
 * Find the splines model with the best out-of-sample predictive ability.
-* Create a visualizaztion arguing why you chose this particular model.
-* Create a visualizaztion of this model plotted over the given $(x_i, y_i)$ points for $i=1,\ldots,n=3000$.
+* Create a visualization arguing why you chose this particular model.
+* Create a visualization of this model plotted over the given $(x_i, y_i)$ points for $i=1,\ldots,n=3000$.
 * Give your estimate $\widehat{\sigma}$ of $\sigma$ where the noise component $\epsilon_i$ is distributed with mean 0 and standard deviation $\sigma$.
 
+# The Plan for simple splines
+1. Create splines models and calculate the MSE of each of them, storing them in a data frame with the MSE value and df.
+2. Graph df~MSE using the data created above
+3. Find the value of df that minimizes MSE to justify our choice
+4. Plot the model 
+
+# The plan for using cross validation to find the best splines model
+1. Randomly sample (without replacement) 1/10 of the data.  Do it 9 times so you have 10 equal data sets
+2. Repeat the simple plan using each segment in turn as the basis for the model, then test that model on the other 9 sets.  Store the MSEs of each (should be 9*9=81) and average them, returning the total as the MSE for that particular model.
+3. You should have 9 total MSEs at this point (one for each 1/10 of the dataset). Choose the one that works best.
 
 # Data 1
 
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
+#Function to calculate MSE for a test set, a train set, and a specified value for df
+MSE_calc <- function(x,train,test){ 
+  splines_model <- smooth.spline(train$x, train$y, df=x)
+  output <- predict(splines_model, test$y) %>% 
+    tibble::as.tibble()
+  mean((test[,2]-output$y)^2) #this is the MSE 
+}
+
+#now attempting to create cross-validate sets
+n <- 600
+nr <- nrow(data1)
+
+train1<-as.data.frame(split(data1, rep(1:ceiling(nr/n), each=n, length.out=nr))[1])
+colnames(train1) <- c("ID", "x","y")
+train2<-as.data.frame(split(data1, rep(1:ceiling(nr/n), each=n, length.out=nr))[2])
+colnames(train2) <- c("ID", "x","y")
+train3<-as.data.frame(split(data1, rep(1:ceiling(nr/n), each=n, length.out=nr))[3])
+colnames(train3) <- c("ID", "x","y")
+train4<-as.data.frame(split(data1, rep(1:ceiling(nr/n), each=n, length.out=nr))[4])
+colnames(train4) <- c("ID", "x","y")
+train5<-as.data.frame(split(data1, rep(1:ceiling(nr/n), each=n, length.out=nr))[5])
+colnames(train5) <- c("ID", "x","y")
+
+test1 <- anti_join(data1,train1,by="ID")
+test2 <- anti_join(data1,train2,by="ID")
+test3 <- anti_join(data1,train3,by="ID")
+test4 <- anti_join(data1,train4,by="ID")
+test5 <- anti_join(data1,train5,by="ID")
+
 ```
+
+```{r}
+set.seed(5)
+df_x2 <- c(1:25)
+df_y2 <- c(1:25)
+for (i in 2:26){
+  df_y2[i-1] <- (sqrt(MSE_calc(i,train1,test1)) + sqrt(MSE_calc(i,train2,test2)) +
+                sqrt(MSE_calc(i,train3,test3)) + sqrt(MSE_calc(i,train4,test4)) +
+                sqrt(MSE_calc(i,train5,test5)))/5
+}
+MSE_plot2 <- data.frame(df_x2,df_y2)
+ggplot(MSE_plot2,aes(x=df_x2,y=df_y2))+geom_point()+xlab("df")+ylab("Total Root MSE")
+```
+As we can see, when we use cross validation on the "data1" dataset using 5 partitions, we find that the value for degrees of freedom that minimizes Root MSE is 12.
+
+```{r}
+splines_model <- smooth.spline(x=data1$x, y=data1$y, df = 12)
+splines_model_tidy <- splines_model %>% 
+  broom::augment() 
+plot <- ggplot(splines_model_tidy, aes(x=x)) +
+  geom_point(aes(y=y)) +
+  geom_line(aes(y=.fitted),size=2, col="blue")
+plot
+```
+Above is the goodness of fit curve for my spline applied to the whole dataset
+
+My estimation of $\sigma$ would be $\widehat{\sigma}=`r df_y2[12]`$ because it is the value of root MSE that corresponds to the optimal degrees of freedom, 12.
 
 # Data 2
 
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
+n <- 600
+nr <- nrow(data2)
+
+train1<-as.data.frame(split(data2, rep(1:ceiling(nr/n), each=n, length.out=nr))[1])
+colnames(train1) <- c("ID", "x","y")
+train2<-as.data.frame(split(data2, rep(1:ceiling(nr/n), each=n, length.out=nr))[2])
+colnames(train2) <- c("ID", "x","y")
+train3<-as.data.frame(split(data2, rep(1:ceiling(nr/n), each=n, length.out=nr))[3])
+colnames(train3) <- c("ID", "x","y")
+train4<-as.data.frame(split(data2, rep(1:ceiling(nr/n), each=n, length.out=nr))[4])
+colnames(train4) <- c("ID", "x","y")
+train5<-as.data.frame(split(data2, rep(1:ceiling(nr/n), each=n, length.out=nr))[5])
+colnames(train5) <- c("ID", "x","y")
+
+test1 <- anti_join(data2,train1,by="ID")
+test2 <- anti_join(data2,train2,by="ID")
+test3 <- anti_join(data2,train3,by="ID")
+test4 <- anti_join(data2,train4,by="ID")
+test5 <- anti_join(data2,train5,by="ID")
 ```
 
+```{r}
+set.seed(5)
+df_x2 <- c(1:25)
+df_y2 <- c(1:25)
+for (i in 2:26){
+  df_y2[i-1] <- (sqrt(MSE_calc(i,train1,test1)) + sqrt(MSE_calc(i,train2,test2)) +
+                sqrt(MSE_calc(i,train3,test3)) + sqrt(MSE_calc(i,train4,test4)) +
+                sqrt(MSE_calc(i,train5,test5)))/5
+}
+MSE_plot2 <- data.frame(df_x2,df_y2)
+ggplot(MSE_plot2,aes(x=df_x2,y=df_y2))+geom_point()+xlab("df")+ylab("Total Root MSE")
+```
+As we can see, when we use cross validation on the "data2" dataset using 5 partitions, we find that the value for degrees of freedom that minimizes Root MSE is 5.
+
+```{r}
+splines_model <- smooth.spline(x=data2$x, y=data2$y, df = 5)
+splines_model_tidy <- splines_model %>% 
+  broom::augment() 
+plot <- ggplot(splines_model_tidy, aes(x=x)) +
+  geom_point(aes(y=y)) +
+  geom_line(aes(y=.fitted),size=2, col="blue")
+plot
+```
+Above is the goodness of fit curve for my spline applied to the whole dataset
+
+My estimation of  $\sigma$ would be $\widehat{\sigma}=`r df_y2[12]`$ because it is the value of root MSE that corresponds to the optimal degrees of freedom, 5.
